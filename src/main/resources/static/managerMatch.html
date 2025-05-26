@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document</title>
+</head>
+<body>
+    <div>
+        <ul>
+            <li>
+                <button type="button" onclick="subscribe" value="1">매니저1</button>
+                <button type="button" onclick="subscribe" value="2">매니저2</button>
+                <button type="button" onclick="subscribe" value="3">매니저3</button>
+                <button type="button" onclick="subscribe" value="4">매니저4</button>
+            </li>
+        </ul>
+    </div>
+<script>
+    function subscribe(event) {
+        console.log(event.target.value);
+    }
+    const evtSource = new EventSource(`/subscribe/${id}`);
+
+    evtSource.onmessage = function (e) {
+      const newElement = document.createElement("li");
+      const eventList = document.getElementById("list");
+
+      newElement.textContent = "message: " + e.data;
+      eventList.appendChild(newElement);
+    };
+
+
+</script>
+</body>
+</html>
