@@ -4,6 +4,16 @@ spring:
   server:
     port: 8080
 
+  cloud:
+    aws:
+      credentials:
+        access-key: ${AWS_S3_ACCESS}
+        secret-key: ${AWS_S3_SECRET}
+      region:
+        static: ap-northeast-2
+      s3:
+        bucket: ${BUCKET_NAME}
+
   profiles:
     active: local
 
@@ -12,8 +22,11 @@ spring:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=UTC&characterEncoding=UTF-8
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
 
   jpa:
+    # open-in-view: false
     show-sql: true
     hibernate:
       ddl-auto: update
@@ -22,11 +35,41 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            redirect-uri: ${GOOGLE_REDIRECT_URI} #TODO .env 파일에서 배포된 도메인으로 변경 필요
+            authorization-grant-type: authorization_code
+            scope:
+              - email
+              - profile
+
   jwt:
     secret: ${JWT_SECRET}
+    access-token-expire-time: ${ACCESS_TOKEN_EXPIRE_TIME}
+    refresh-token-expire-time: ${REFRESH_TOKEN_EXPIRE_TIME}
+    cookie-max-age: ${COOKIE_MAX_AGE}
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
 
 env:
   secure-cookie: false
+sse:
+  timeout: ${SSE_TIMEOUT:600000}
+
 
 springdoc:
   api-docs:
@@ -44,3 +87,23 @@ springdoc:
     # 문서를 로드할때 기본적으로 API가 모두 접힌 상태로 설정
     # list: 태그만 펼침, full: 모든 API 펼침
     doc-expansion: none
+server:
+  forward-headers-strategy: native
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+logging:
+  level:
+    root: INFO
+    com.homeaid.global: WARN
+    com.homeaid.admin: INFO
+    com.homeaid.user: INFO
+    com.homeaid.reservation: INFO
+    com.homeaid.review: INFO
+    com.homeaid.payment: DEBUG
+    com.homeaid.board: DEBUG
+    com.homeaid.worklog: INFO

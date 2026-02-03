@@ -25,17 +25,18 @@ allprojects {
 }
 
 dependencies {
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation(project(":user"))
 	implementation(project(":payment"))
 	implementation(project(":reservation"))
 	implementation(project(":board"))
-	implementation(project(":worklog"))
 	implementation(project(":global"))
 	implementation(project(":admin"))
 	implementation(project(":review"))
 	implementation(project(":common-domain"))
+	implementation(project(":notification"))
 }
 
 subprojects {
@@ -46,6 +47,13 @@ subprojects {
 		testImplementation("com.h2database:h2")
 		testImplementation("org.springframework.boot:spring-boot-starter-test")
 		testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+		// redis
+		implementation ("org.springframework.boot:spring-boot-starter-data-redis")
+
+		implementation ("org.springframework.boot:spring-boot-starter-security")
+		testImplementation ("org.springframework.security:spring-security-test")
+
 	}
 
 	configurations {

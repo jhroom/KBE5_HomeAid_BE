@@ -1,80 +1,91 @@
 package com.homeaid.controller;
 
 import com.homeaid.common.response.CommonApiResponse;
-import com.homeaid.domain.Customer;
-import com.homeaid.domain.Manager;
-import com.homeaid.dto.request.CustomerSignUpRequestDto;
-import com.homeaid.dto.request.ManagerSignUpRequestDto;
-import com.homeaid.dto.response.UserSignUpResponseDto;
+import com.homeaid.domain.User;
+import com.homeaid.dto.request.UserUpdateRequestDto;
+import com.homeaid.dto.response.UserProfileResponseDto;
+import com.homeaid.exception.CustomException;
+import com.homeaid.exception.ErrorCode;
+import com.homeaid.auth.user.CustomUserDetails;
 import com.homeaid.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @RestController
-@RequestMapping("/api/v1/user")
 @RequiredArgsConstructor
-@Tag(name = "SignUp/SignIn", description = "사용자 회원가입 API (매니저/고객)")
+@RequestMapping("/api/v1/users")
 public class UserController {
 
   private final UserService userService;
-    private final BCryptPasswordEncoder passwordEncoder;
 
-  @PostMapping("/auth/signup/manager")
-  @Operation(summary = "매니저 회원가입", description = "매니저 사용자 정보를 입력받아 회원가입을 처리합니다.")
-  @ApiResponses(value = {
-      @ApiResponse(responseCode = "201", description = "회원가입 성공"
-          , content = @Content(schema = @Schema(implementation = UserSignUpResponseDto.class))),
-      @ApiResponse(responseCode = "400", description = "잘못된 입력값"
-          , content = @Content(schema = @Schema(implementation = CommonApiResponse.class))),
-      @ApiResponse(responseCode = "409", description = "이미 존재하는 이메일"
-          , content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))
-  })
-  public ResponseEntity<CommonApiResponse<UserSignUpResponseDto>> signUpManager(
-      @RequestBody @Valid ManagerSignUpRequestDto managerSignUpRequestDto
-  ) {
+  @GetMapping("/my")
+  @Operation(summary = "회원 기본 정보 조회", description = "회원정보 기본 정보 수정을 위한 회원 정보 조회")
+  public ResponseEntity<CommonApiResponse<UserProfileResponseDto>> getUserProfile(
+      @AuthenticationPrincipal CustomUserDetails user) {
 
-    String password = passwordEncoder.encode(managerSignUpRequestDto.getPassword());
-    Manager manager = userService.signUpManager(
-        ManagerSignUpRequestDto.toEntity(managerSignUpRequestDto, password) // 비밀번호 추가 수정 필요
-    );
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(CommonApiResponse.success(UserSignUpResponseDto.toManagerDto(manager)));
+    Long userId = user.getUserId();
+    User userProfile = userService.getUserById(userId);
+
+    log.debug("유저 프로필 이미지 URL: {}", userProfile.getProfileImageUrl());
+
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(CommonApiResponse.success(UserProfileResponseDto.toUserProfileDto(userProfile)));
   }
 
-  @Operation(summary = "고객 회원가입", description = "고객 사용자 정보를 입력받아 회원가입을 처리합니다.")
-  @ApiResponses(value = {
-      @ApiResponse(responseCode = "201", description = "회원가입 성공"
-          , content = @Content(schema = @Schema(implementation = UserSignUpResponseDto.class))),
-      @ApiResponse(responseCode = "400", description = "잘못된 입력값"
-          , content = @Content(schema = @Schema(implementation = CommonApiResponse.class))),
-      @ApiResponse(responseCode = "409", description = "이미 존재하는 이메일"
-          , content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))
-  })
-  @PostMapping("/auth/signup/customer")
-  public ResponseEntity<CommonApiResponse<UserSignUpResponseDto>> signUpCustomer(
-      @RequestBody @Valid CustomerSignUpRequestDto customerSignUpRequestDto
-  ) {
+  @PutMapping("/my")
+  @Operation(summary = "회원 정보 수정")
+  public ResponseEntity<Void> updateUserInfo(
+      @AuthenticationPrincipal CustomUserDetails user,
+      @Valid @RequestBody UserUpdateRequestDto dto) {
 
-    String password = passwordEncoder.encode(customerSignUpRequestDto.getPassword());
-
-    Customer customer = userService.signUpCustomer(
-        CustomerSignUpRequestDto.toEntity(customerSignUpRequestDto, password) // 비밀번호 추가 수정 필요
-    );
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(CommonApiResponse.success(UserSignUpResponseDto.toCustomerDto(customer)));
+    Long userId = user.getUserId();
+    userService.updateUserInfo(userId, dto);
+    return ResponseEntity.noContent().build();
   }
 
+  @PostMapping(value = "/my/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(summary = "회원 프로필 이미지 등록")
+  public ResponseEntity<CommonApiResponse<Void>> updateProfileImage(
+      @AuthenticationPrincipal CustomUserDetails user,
+      @RequestPart MultipartFile file
+  ) throws IOException {
+
+    if (file.isEmpty()) {
+      throw new CustomException(ErrorCode.FILE_EMPTY);
+    }
+
+    Long userId = user.getUserId();
+    userService.uploadProfileImage(userId, file);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(CommonApiResponse.success());
+  }
+
+  @DeleteMapping(value = "/my/image")
+  @Operation(summary = "회원 프로필 이미지 삭제")
+  public ResponseEntity<CommonApiResponse<Void>> deleteProfileImage(
+      @AuthenticationPrincipal CustomUserDetails user
+  ) throws IOException {
+
+    Long userId = user.getUserId();
+    userService.deleteProfileImage(userId);
+
+    return ResponseEntity.status(HttpStatus.OK).body(CommonApiResponse.success());
+  }
 }
