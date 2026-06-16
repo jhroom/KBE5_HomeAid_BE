@@ -11,6 +11,9 @@ import lombok.Setter;
 @Setter
 public class RequestAlert {
 
+    // DB에 저장된 알림 id (발행 시 Publisher가 채워 넣음)
+    private Long notificationId;
+
     private AlertType alertType;
 
     // 수신자 정보

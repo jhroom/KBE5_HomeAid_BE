@@ -18,6 +18,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findByTargetRoleAndStatusOrderByCreatedAtDesc(UserRole userType, NotificationStatus notificationStatus);
 
+    // 아직 읽지 않은 알림(UNREAD + DELIVERED) 전체 조회 — 재연결 백필용
+    List<Notification> findByTargetIdAndStatusNotOrderByCreatedAtDesc(Long userId, NotificationStatus notificationStatus);
+
+    List<Notification> findByTargetRoleAndStatusNotOrderByCreatedAtDesc(UserRole userType, NotificationStatus notificationStatus);
+
     @Query("""
         SELECT
             n

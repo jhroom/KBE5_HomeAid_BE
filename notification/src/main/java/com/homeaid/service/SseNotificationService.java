@@ -85,47 +85,58 @@ public class SseNotificationService {
         return true;
     }
 
+    // 이미 DB에 저장된 알림을 SSE로 전송한다(저장은 발행 측에서 완료됨).
     @Async
-    public void createAlertByRequestAlert(RequestAlert requestAlert) {
-        Notification notification = RequestAlert.toNotification(requestAlert);
-        notificationService.createNotification(notification);
+    public void deliver(RequestAlert requestAlert) {
+        Long targetId = requestAlert.getTargetId();
+        if (targetId == null || !connections.containsKey(targetId)) {
+            return; // 미접속 → DB에 남아 재연결 시 백필
+        }
 
-        if (!connections.containsKey(notification.getTargetId())) {
+        Notification notification = notificationService.getNotification(requestAlert.getNotificationId());
+        if (notification == null) {
             return;
         }
 
-        boolean sendResult = sendAlertToUser(requestAlert.getTargetId(), ResponseAlert.toDto(notification));
-        if (sendResult) {
-            notification.markAsSent();
+        if (sendAlertToUser(targetId, ResponseAlert.toDto(notification))) {
+            notificationService.markDelivered(notification.getId());
         }
     }
 
     @Async
-    public void createAdminAlertByRequestAlert(RequestAlert requestAlert) {
-        Notification notification = RequestAlert.toNotification(requestAlert);
-        notificationService.createNotification(notification);
-
+    public void deliverAdmin(RequestAlert requestAlert) {
         if (adminIds.isEmpty()) {
             return;
         }
 
-        broadcastAdminAlert(Collections.singletonList(notification));
-        updateSentAlerts(Collections.singletonList(notification));
+        Notification notification = notificationService.getNotification(requestAlert.getNotificationId());
+        if (notification == null) {
+            return;
+        }
+
+        if (broadcastAdminAlert(notification)) {
+            notificationService.markDelivered(notification.getId());
+        }
     }
 
-    public void broadcastAdminAlert(List<Notification> notifications) {
-        connections.keySet().stream()
-                .filter(adminIds::contains)
-                .forEach(adminId -> {
-                    SseEmitter emitter = connections.get(adminId);
-                    try {
-                        emitter.send(SseEmitter.event()
-                                .name("new-notification")
-                                .data(notifications.stream().map(ResponseAlert::toDto)));
-                    } catch (IOException e) {
-                        removeConnection(adminId);
-                    }
-                });
+    public boolean broadcastAdminAlert(Notification notification) {
+        ResponseAlert payload = ResponseAlert.toDto(notification);
+        boolean deliveredToAny = false;
+        for (Long adminId : connections.keySet()) {
+            if (!adminIds.contains(adminId)) {
+                continue;
+            }
+            SseEmitter emitter = connections.get(adminId);
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("new-notification")
+                        .data(payload));
+                deliveredToAny = true;
+            } catch (IOException e) {
+                removeConnection(adminId);
+            }
+        }
+        return deliveredToAny;
     }
 
     public void gracefulDisconnect(Long userId) {
@@ -142,15 +153,6 @@ public class SseNotificationService {
     private void removeConnection(Long userId) {
         connections.remove(userId);
         adminIds.remove(userId);
-    }
-
-    public void updateSentAlerts(List<Notification> notifications) {
-        try {
-            notificationService.updateMarkSentAt(notifications);
-        } catch (Exception e) {
-            log.error("알림 전송 상태 업데이트 실패", e);
-            throw e;
-        }
     }
 
     @Scheduled(fixedRate = 30000) //30초마다 핑

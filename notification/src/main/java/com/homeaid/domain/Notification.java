@@ -62,7 +62,6 @@ public class Notification {
         this.targetId = targetId;
         this.targetRole = targetRole;
         this.relatedEntityId = relatedEntityId;
-        this.lastSentAt = LocalDateTime.now();
         this.content = content;
     }
 
@@ -71,7 +70,10 @@ public class Notification {
         this.readAt = LocalDateTime.now();
     }
 
-    public void markAsSent() {
+    public void markAsDelivered() {
+        if (this.status == NotificationStatus.UNREAD) {
+            this.status = NotificationStatus.DELIVERED;
+        }
         this.lastSentAt = LocalDateTime.now();
     }
 }

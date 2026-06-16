@@ -22,28 +22,33 @@ import java.util.Optional;
 public class NotificationService {
     private final NotificationRepository notificationRepository;
 
+    // 발행 측(Publisher)이 비즈니스 트랜잭션 안에서 호출 → 비즈니스 변경과 원자적으로 저장된다.
+    // 저장 실패 시 예외를 전파해 전체 트랜잭션을 롤백한다(알림 유실 방지).
     @Transactional
-    public void createNotification(Notification notification) {
-        try {
-            notificationRepository.save(notification);
-        } catch (Exception e) {
-            log.error("알림 생성 실패", e);
-        }
+    public Notification createNotification(Notification notification) {
+        return notificationRepository.save(notification);
     }
 
-    //연결시 사용자의 읽지 않은 알림들
+    @Transactional(readOnly = true)
+    public Notification getNotification(Long notificationId) {
+        return notificationRepository.findById(notificationId).orElse(null);
+    }
+
+    //연결시 사용자의 아직 읽지 않은 알림들(UNREAD + DELIVERED)
     @Transactional(readOnly = true)
     public List<Notification> getUnReadAlerts(Long userId, UserRole userRole) {
         if (UserRole.ADMIN.equals(userRole)) {
-            return notificationRepository.findByTargetRoleAndStatusOrderByCreatedAtDesc(userRole, NotificationStatus.UNREAD);
+            return notificationRepository.findByTargetRoleAndStatusNotOrderByCreatedAtDesc(userRole, NotificationStatus.READ);
         } else {
-            return notificationRepository.findByTargetIdAndStatusOrderByCreatedAtDesc(userId, NotificationStatus.UNREAD);
+            return notificationRepository.findByTargetIdAndStatusNotOrderByCreatedAtDesc(userId, NotificationStatus.READ);
         }
     }
 
+    // SSE 전송 성공 후 호출 — id로 재조회한 managed 엔티티를 갱신해 dirty checking으로 반영
     @Transactional
-    public void updateMarkSentAt(List<Notification> notifications) {
-        notifications.forEach(Notification::markAsSent);
+    public void markDelivered(Long notificationId) {
+        notificationRepository.findById(notificationId)
+                .ifPresent(Notification::markAsDelivered);
     }
 
     @Transactional

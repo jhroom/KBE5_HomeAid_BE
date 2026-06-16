@@ -29,9 +29,9 @@ public class NotificationSubscriber implements MessageListener {
             RequestAlert requestAlert = objectMapper.readValue(messageBody, RequestAlert.class);
 
             if (NOTIFICATION_CHANNEL.equals(channel)) {
-                sseNotificationService.createAlertByRequestAlert(requestAlert);
+                sseNotificationService.deliver(requestAlert);
             } else if (NOTIFICATION_ADMIN_CHANNEL.equals(channel)) {
-                sseNotificationService.createAdminAlertByRequestAlert(requestAlert);
+                sseNotificationService.deliverAdmin(requestAlert);
             }
         } catch (JsonProcessingException e) {
             log.error("알림 처리 실패", e);
